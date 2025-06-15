@@ -1,18 +1,52 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
 const FREE_PLAN_LIMIT = 10; // 1 geração grátis
 
-// 🔗 Insira aqui a URL pública do webhook do n8n
-const N8N_WEBHOOK_URL = "https://seu-servidor.n8n.cloud/webhook/sua-rota"; // <-- Troque para o seu endpoint
+// Acessa as variáveis de ambiente usando import.meta.env (Vite)
+const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || ""; 
+const N8N_WEBHOOK_ROUTE = import.meta.env.VITE_N8N_WEBHOOK_ROUTE || "";
+
+// Verificação de segurança: alerta se as variáveis de ambiente não estão definidas
+if (!N8N_WEBHOOK_URL || !N8N_WEBHOOK_ROUTE) {
+  console.error("⚠️ As variáveis de ambiente do webhook n8n não estão configuradas!");
+}
+
+// Funções de utilidade para chat history, similar ao exemplo que funcionou
+const getCurrentChatId = () => {
+  let chatId = localStorage.getItem('current_chat_id');
+  if (!chatId) {
+    chatId = `chat_${Date.now()}`;
+    localStorage.setItem('current_chat_id', chatId);
+  }
+  return chatId;
+};
+
+const getChatHistory = (chatId) => {
+  const history = localStorage.getItem(`chat_history_${chatId}`);
+  return history ? JSON.parse(history) : [];
+};
+
+const saveChatHistory = (chatId, history) => {
+  localStorage.setItem(`chat_history_${chatId}`, JSON.stringify(history));
+};
+
+const getChats = () => {
+  const chats = localStorage.getItem('runsheet_chats');
+  return chats ? JSON.parse(chats) : [];
+};
+
+const saveChats = (chats) => {
+  localStorage.setItem('runsheet_chats', JSON.stringify(chats));
+};
 
 const Chat = () => {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<"checking" | "available" | "unavailable">("checking");
 
   const navigate = useNavigate();
 
@@ -22,6 +56,34 @@ const Chat = () => {
   // Limite gratuito (apenas para quem não é premium)
   const freeGenerations = Number(localStorage.getItem("runsheet_free_generations") || 0);
   const availableGenerations = isPremium ? Infinity : (FREE_PLAN_LIMIT - freeGenerations);
+  // Verifica se o webhook está disponível ao carregar a página
+  useEffect(() => {
+    // Uma vez que o webhook funciona com POST e não com OPTIONS,
+    // vamos presumir que ele está sempre disponível ou verificá-lo de outra forma
+    setWebhookStatus("available");
+    
+    // Se você quiser fazer uma verificação real posteriormente, pode
+    // usar um endpoint de status ou health check específico
+    // ou verificar apenas se o domínio está acessível
+    const checkDomainOnly = async () => {
+      try {        // Verifica apenas se o domínio base é acessível, não o webhook específico
+        // Isso evita problemas com CORS ou métodos não suportados
+        // Extrai o domínio base da URL do webhook
+        const webhookDomain = N8N_WEBHOOK_URL.match(/^(https?:\/\/[^\/]+)/)?.[1] || N8N_WEBHOOK_URL;
+        await fetch(webhookDomain, { 
+          method: "HEAD",
+          mode: "no-cors", // Isso permite verificar sem problemas de CORS
+          signal: AbortSignal.timeout(3000)
+        });
+        // Se não lançou exceção, consideramos que o serviço está online
+      } catch (err) {
+        console.warn("Aviso: Domínio do webhook pode estar indisponível, mas tentaremos mesmo assim.");
+        // Não alteramos o status para evitar bloquear funcionalidade que pode estar funcionando
+      }
+    };
+    
+    checkDomainOnly();
+  }, []);
 
   // Função principal de geração: envia para n8n e mostra resposta
   const handleGenerate = async () => {
@@ -36,27 +98,62 @@ const Chat = () => {
     if (!input.trim()) {
       toast({ title: "Preencha o campo para gerar!" });
       return;
-    }
+    }    // Removida verificação de disponibilidade do webhook, já que o POST funciona mesmo quando OPTIONS falha
 
     setIsLoading(true);
     setOutput(null);
 
-    try {
-      // Altere a estrutura do body conforme o n8n espera!
-      const res = await fetch(N8N_WEBHOOK_URL, {
+    try {      // Usando a estrutura que funcionou anteriormente
+      const fullWebhookUrl = `${N8N_WEBHOOK_URL}/${N8N_WEBHOOK_ROUTE}`;
+        // Obtém o chatId atual
+      const chatId = getCurrentChatId();
+      
+      // Salva mensagem do usuário no histórico
+      let history = getChatHistory(chatId);
+      history.push({ from: "user", text: input });
+      saveChatHistory(chatId, history);
+      
+      // Se é a primeira mensagem, salva como nome do chat
+      const chats = getChats();
+      if (!chats.some(c => c.id === chatId)) {
+        chats.push({
+          id: chatId,
+          name: input.length > 30 ? input.slice(0, 30) + "..." : input,
+          history: history
+        });
+        saveChats(chats);
+      }
+      
+      const res = await fetch(fullWebhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          chatId: chatId,
           message: input,
-          userId: "anon", // Simulação: troque por user real se desejar
+          route: N8N_WEBHOOK_ROUTE
         }),
       });
 
-      if (!res.ok) throw new Error("Falha ao conectar ao webhook n8n.");
-
-      const data = await res.json();
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "Sem detalhes de erro disponíveis");
+        console.error(`Erro do webhook (Status ${res.status}):`, errorText);
+        throw new Error(`Falha ao conectar ao webhook n8n. Status: ${res.status}`);
+      }      const data = await res.json();
       // Espera-se que o n8n responda com { output: "..." }
       const chatOutput = data?.output || "Desculpe, não entendi.";
+
+      // Salva resposta no histórico do chat
+      let updatedHistory = getChatHistory(chatId);
+      updatedHistory.push({ from: "assistant", text: chatOutput });
+      saveChatHistory(chatId, updatedHistory);
+
+      // Atualiza o chat na lista
+      let updatedChats = getChats();
+      const chatIndex = updatedChats.findIndex(c => c.id === chatId);
+      if (chatIndex !== -1) {
+        updatedChats[chatIndex].history = updatedHistory;
+        saveChats(updatedChats);
+      }
 
       // Incrementa o uso gratuito se não for premium
       if (!isPremium) {
@@ -68,9 +165,10 @@ const Chat = () => {
 
       setOutput(chatOutput);
     } catch (err) {
+      console.error("Erro detalhado:", err);
       toast({
-        title: "Erro ao gerar planilha",
-        description: "Verifique o webhook do n8n e tente novamente.",
+        title: "Erro ao conectar com o webhook",
+        description: err instanceof Error ? err.message : "Verifique o webhook do n8n e tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -82,7 +180,7 @@ const Chat = () => {
     <main className="max-w-xl mx-auto py-12 flex flex-col gap-8">
       <h1 className="text-2xl font-bold text-center mb-2">
         Gerar Planilha Personalizada
-      </h1>
+      </h1>      {/* Removido aviso de serviço indisponível, já que o webhook POST está funcionando */}
 
       <p className="text-center text-muted-foreground">
         {isPremium
@@ -96,13 +194,11 @@ const Chat = () => {
         <textarea
           className="w-full border rounded p-2"
           rows={4}
-          placeholder="Descreva seu objetivo, nível e disponibilidade..."
-          value={input}
+          placeholder="Descreva seu objetivo, nível e disponibilidade..."          value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading || availableGenerations <= 0}
         />
-        <Button
-          className="w-full"
+        <Button          className="w-full"
           onClick={handleGenerate}
           disabled={isLoading || availableGenerations <= 0}
         >
