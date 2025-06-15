@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 
 const PricingSection = () => (
@@ -14,7 +13,7 @@ const PricingSection = () => (
         <li className="flex gap-2"><span className="font-bold text-primary">✔️</span> Portal de assinante</li>
       </ul>
       <Button
-        size="xl"
+        size="lg"
         className="w-full text-lg font-bold px-10 py-6"
         onClick={() => window.alert("Checkout ainda não implementado. Em breve: integração Stripe!")}
       >

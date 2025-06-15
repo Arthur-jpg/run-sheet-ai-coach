@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
@@ -14,7 +13,7 @@ const HeroSection = () => {
         Crie planilhas personalizadas para corrida com base em estudos comprovados, usando inteligência artificial.
       </p>
       <Button
-        size="xl"
+        size="lg"
         className="mt-10 px-10 py-6 text-lg font-bold shadow-lg animate-fade-in"
         onClick={() => navigate("/chat")}
       >
