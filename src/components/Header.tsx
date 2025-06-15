@@ -1,10 +1,13 @@
-
 import { Button } from "@/components/ui/button";
 import { SignInButton, UserButton, SignedIn, SignedOut } from "@clerk/clerk-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Destacar links ativos
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <header className="w-full flex items-center justify-between py-5 px-10 bg-white/80 backdrop-blur sticky top-0 z-50 shadow-sm">
@@ -12,7 +15,21 @@ const Header = () => {
         <span className="font-black text-2xl tracking-tight text-primary">RunSheet</span>
         <span className="ml-2 text-xs font-semibold text-gray-500 uppercase tracking-widest">BETA</span>
       </div>
-      <nav>
+      <nav className="flex items-center gap-3">
+        <Button
+          variant={isActive("/chat") ? "secondary" : "ghost"}
+          size="lg"
+          onClick={() => navigate("/chat")}
+        >
+          Chat
+        </Button>
+        <Button
+          variant={isActive("/dashboard") ? "secondary" : "ghost"}
+          size="lg"
+          onClick={() => navigate("/dashboard")}
+        >
+          Minha Área
+        </Button>
         <SignedOut>
           <SignInButton mode="modal">
             <Button variant="default" size="lg">Entrar</Button>
@@ -20,14 +37,6 @@ const Header = () => {
         </SignedOut>
         <SignedIn>
           <UserButton afterSignOutUrl="/" />
-          <Button
-            variant="ghost"
-            size="lg"
-            className="ml-4"
-            onClick={() => navigate("/dashboard")}
-          >
-            Minha Área
-          </Button>
         </SignedIn>
       </nav>
     </header>
