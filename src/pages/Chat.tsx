@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
-const FREE_PLAN_LIMIT = 1; // 1 geração grátis
+const FREE_PLAN_LIMIT = 10; // 1 geração grátis
 
 const Chat = () => {
   const [input, setInput] = useState("");
