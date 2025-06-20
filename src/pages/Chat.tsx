@@ -4,11 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CreditCard, Copy, Check } from "lucide-react";
+import { Loader2, Send, CreditCard, Copy, Check, FileDown, Printer } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const FREE_PLAN_LIMIT = 100; // 3 mensagens gratuitas por chat
 
@@ -260,6 +262,126 @@ const Chat = () => {  const [input, setInput] = useState("");
         });
       });
   };
+  // Função para exportar a planilha como PDF
+  const handleExportPDF = async (messageElement: HTMLElement, index: number) => {
+    try {
+      // Mostrar um toast de carregamento
+      toast({
+        title: "Preparando PDF...",
+        description: "Aguarde enquanto geramos o seu PDF."
+      });
+      
+      // Encontre a tabela dentro do elemento da mensagem
+      // Primeiro tenta encontrar dentro do elemento passado, senão procura no documento pelo index
+      let tableElement = messageElement.querySelector('table');
+      
+      if (!tableElement) {
+        // Fallback: procuramos pelo index no documento
+        const messageContainers = document.querySelectorAll('.message-container');
+        if (messageContainers[index]) {
+          tableElement = messageContainers[index].querySelector('table');
+        }
+      }
+      
+      if (!tableElement) {
+        toast({
+          title: "Erro ao exportar",
+          description: "Não foi possível encontrar uma tabela para exportar.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Criamos um container temporário para melhor formatação
+      const tempContainer = document.createElement('div');
+      tempContainer.style.padding = '20px';
+      tempContainer.style.backgroundColor = 'white';
+      tempContainer.style.width = '700px'; // Largura fixa para melhor qualidade
+        // Adicionamos um título e data ao PDF
+      const title = document.createElement('h2');
+      title.textContent = 'Planilha de Treino';
+      title.style.marginBottom = '5px';
+      title.style.fontFamily = 'Arial, sans-serif';
+      title.style.color = '#333';
+      tempContainer.appendChild(title);
+      
+      // Adicionamos a data
+      const dateElem = document.createElement('p');
+      dateElem.textContent = `Gerado em: ${new Date().toLocaleString('pt-BR')}`;
+      dateElem.style.marginBottom = '15px';
+      dateElem.style.fontFamily = 'Arial, sans-serif';
+      dateElem.style.color = '#666';
+      tempContainer.appendChild(dateElem);
+      
+      // Clonamos a tabela para o container temporário
+      const tableClone = tableElement.cloneNode(true) as HTMLElement;
+      tableClone.style.width = '100%';
+      tableClone.style.borderCollapse = 'collapse';
+      
+      // Melhoramos o estilo para o PDF
+      const cells = tableClone.querySelectorAll('th, td');
+      cells.forEach(cell => {
+        (cell as HTMLElement).style.border = '1px solid #ccc';
+        (cell as HTMLElement).style.padding = '8px';
+        (cell as HTMLElement).style.textAlign = 'left';
+      });
+      
+      const headers = tableClone.querySelectorAll('th');
+      headers.forEach(header => {
+        (header as HTMLElement).style.backgroundColor = '#f2f2f2';
+        (header as HTMLElement).style.fontWeight = 'bold';
+      });
+      
+      tempContainer.appendChild(tableClone);
+      
+      // Data para o nome do arquivo
+      const date = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+      
+      // Anexamos temporariamente ao documento para capturar o HTML
+      document.body.appendChild(tempContainer);
+      
+      // Capturamos o container como imagem
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2, // Melhor qualidade
+        backgroundColor: null,
+        logging: false
+      });
+      
+      // Removemos o container temporário
+      document.body.removeChild(tempContainer);
+      
+      // Calculamos as dimensões
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Criamos o PDF (formato A4)
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Adicionamos a imagem capturada ao PDF
+      pdf.addImage(
+        canvas.toDataURL('image/png'), 
+        'PNG', 
+        0, 0, 
+        imgWidth, imgHeight
+      );
+      
+      // Salvamos o arquivo
+      pdf.save(`planilha-de-treino-${date}.pdf`);
+      
+      toast({
+        title: "PDF gerado com sucesso!",
+        description: "Sua planilha foi exportada como PDF."
+      });
+      
+    } catch (err) {
+      console.error("Erro ao exportar PDF:", err);
+      toast({
+        title: "Erro ao exportar",
+        description: "Ocorreu um erro ao gerar o PDF. Por favor, tente novamente.",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Renderiza uma mensagem individual
   const renderMessage = (message: ChatMessage, index: number) => {
@@ -269,16 +391,15 @@ const Chat = () => {  const [input, setInput] = useState("");
     // mudar isso se precissar mexer sem limite
     const shouldBlur = isPremium && message.containsSheet;
     
-    return (      <div 
-        key={index} 
+    return (      <div        key={index} 
         className={`mb-4 flex ${isUser ? 'justify-end' : 'justify-start'} group`}      ><div 
           className={`${isUser ? 'max-w-3/4' : 'max-w-[85%]'} rounded-lg p-4 relative ${
             isUser 
               ? 'bg-blue-500 text-white' 
               : 'bg-gray-100 text-gray-800'
-          }`}
+          } message-container`}
         >
-          <div className={`markdown-body ${shouldBlur ? 'blur-sm select-none' : ''}`}>
+          <div className={`markdown-body ${shouldBlur ? 'blur-sm select-none' : ''} ${message.containsSheet ? 'contains-sheet' : ''}`}>
             {isUser ? (
               // Para mensagens do usuário, usamos texto simples
               <p className="whitespace-pre-wrap" style={{ margin: 0 }}>
@@ -324,17 +445,47 @@ const Chat = () => {  const [input, setInput] = useState("");
             <div className="mt-2 py-2 px-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs">
               <strong>💡 Conteúdo limitado:</strong> Faça upgrade para visualizar planilhas completas.
             </div>
-          )}          {/* Ícone de cópia - posicionado no canto superior direito */}
-          {!isUser && (            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleCopyText(message.text, index)}
-              disabled={isLoading}
-              className="absolute top-1 right-1 p-1 h-8 w-8 opacity-0 group-hover:opacity-100 hover:bg-gray-200 focus:opacity-100 transition-opacity"
-              title="Copiar mensagem"
-            >
-              {copiedMessageId === index ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </Button>
+          )}          {/* Ações - posicionados no canto superior direito */}
+          {!isUser && (
+            <div className="absolute top-1 right-1 flex opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Botão de exportar PDF - só aparece se a mensagem contiver planilha */}
+              {message.containsSheet && (
+                <Button
+                  variant="ghost"
+                  size="sm"                  onClick={(e) => {
+                    // Encontramos o elemento que contém a mensagem
+                    const messageEl = (e.target as HTMLElement).closest('.message-container') as HTMLElement;
+                    if (messageEl) {
+                      const markdownBody = messageEl.querySelector('.contains-sheet') as HTMLElement;
+                      handleExportPDF(markdownBody || messageEl, index);
+                    } else {
+                      toast({ 
+                        title: "Erro ao exportar", 
+                        description: "Não foi possível encontrar o conteúdo da planilha.",
+                        variant: "destructive"
+                      });
+                    }
+                  }}
+                  disabled={isLoading || shouldBlur}
+                  className="p-1 h-8 w-8 mr-1 hover:bg-gray-200 focus:opacity-100"
+                  title="Exportar planilha como PDF"
+                >
+                  <FileDown className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {/* Botão de copiar */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopyText(message.text, index)}
+                disabled={isLoading}
+                className="p-1 h-8 w-8 hover:bg-gray-200 focus:opacity-100"
+                title="Copiar mensagem"
+              >
+                {copiedMessageId === index ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -358,11 +509,26 @@ const Chat = () => {  const [input, setInput] = useState("");
     .markdown-body a { color: #0366d6; text-decoration: none; }    .markdown-body a:hover { text-decoration: underline; }
     .markdown-body table { width: 100%; overflow-x: auto; display: block; }
     .markdown-body table th, .markdown-body table td { min-width: 80px; }
-    .markdown-body img { max-width: 100%; }
-    .bg-blue-500 .markdown-body { color: white; }
+    .markdown-body img { max-width: 100%; }    .bg-blue-500 .markdown-body { color: white; }
     .bg-blue-500 .markdown-body a { color: #cce4ff; }
     .bg-blue-500 .markdown-body blockquote { border-left-color: #ffffff80; color: #ffffffcc; }
-  `;  return (
+    
+    /* Estilos específicos para impressão/PDF */
+    @media print {
+      .markdown-body table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+      .markdown-body th, .markdown-body td {
+        border: 1px solid #ddd !important;
+        padding: 8px !important;
+      }
+      .markdown-body th {
+        background-color: #f2f2f2 !important;
+        font-weight: bold !important;
+      }
+    }
+  `;return (
     <main className="max-w-4xl mx-auto py-6 flex flex-col h-screen overflow-hidden">
       <style>{markdownStyles}</style>      <div className="min-h-[80px]">
         <h1 className="text-2xl font-bold text-center mb-2">
