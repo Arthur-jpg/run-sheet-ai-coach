@@ -291,12 +291,11 @@ const Chat = () => {  const [input, setInput] = useState("");
         });
         return;
       }
-      
-      // Criamos um container temporário para melhor formatação
+        // Criamos um container temporário para melhor formatação
       const tempContainer = document.createElement('div');
-      tempContainer.style.padding = '20px';
+      tempContainer.style.padding = '15px';
       tempContainer.style.backgroundColor = 'white';
-      tempContainer.style.width = '700px'; // Largura fixa para melhor qualidade
+      // Não definimos largura fixa para permitir que o conteúdo defina a largura necessária
         // Adicionamos um título e data ao PDF
       const title = document.createElement('h2');
       title.textContent = 'Planilha de Treino';
@@ -311,58 +310,127 @@ const Chat = () => {  const [input, setInput] = useState("");
       dateElem.style.marginBottom = '15px';
       dateElem.style.fontFamily = 'Arial, sans-serif';
       dateElem.style.color = '#666';
-      tempContainer.appendChild(dateElem);
-      
-      // Clonamos a tabela para o container temporário
+      tempContainer.appendChild(dateElem);      // Clonamos a tabela para o container temporário
       const tableClone = tableElement.cloneNode(true) as HTMLElement;
-      tableClone.style.width = '100%';
       tableClone.style.borderCollapse = 'collapse';
+      tableClone.style.fontSize = '11px'; // Tamanho de fonte legível mas que economiza espaço
+      tableClone.style.tableLayout = 'auto'; // Permitir que o tamanho das colunas se ajuste ao conteúdo
+      tableClone.style.width = '100%'; // Usar toda a largura disponível
       
       // Melhoramos o estilo para o PDF
       const cells = tableClone.querySelectorAll('th, td');
-      cells.forEach(cell => {
-        (cell as HTMLElement).style.border = '1px solid #ccc';
-        (cell as HTMLElement).style.padding = '8px';
-        (cell as HTMLElement).style.textAlign = 'left';
-      });
+        // Verificamos quantas colunas a tabela tem para definir o melhor formato
+      const firstRow = tableClone.querySelector('tr');
+      const colCount = firstRow ? firstRow.children.length : 0;
       
-      const headers = tableClone.querySelectorAll('th');
+      // Se tiver muitas colunas, ajustamos os estilos para economizar espaço
+      const isWideTable = colCount > 5;
+      
+      cells.forEach(cell => {
+        const cellEl = cell as HTMLElement;
+        cellEl.style.border = '1px solid #ccc';
+        cellEl.style.padding = isWideTable ? '3px' : '5px'; // Padding menor para tabelas largas
+        cellEl.style.textAlign = 'left';
+        cellEl.style.whiteSpace = 'normal';
+        cellEl.style.wordBreak = 'break-word';
+        
+        // Ajustamos o tamanho da fonte baseado na largura da tabela
+        cellEl.style.fontSize = isWideTable ? '9px' : '11px';
+      });
+        const headers = tableClone.querySelectorAll('th');
       headers.forEach(header => {
-        (header as HTMLElement).style.backgroundColor = '#f2f2f2';
-        (header as HTMLElement).style.fontWeight = 'bold';
+        const headerEl = header as HTMLElement;
+        headerEl.style.backgroundColor = '#f2f2f2';
+        headerEl.style.fontWeight = 'bold';
+        headerEl.style.fontSize = '11px'; // Tamanho de fonte consistente
+        // Tentar otimizar a largura conforme o conteúdo
+        const contentWidth = headerEl.textContent?.length || 0;
+        if (contentWidth < 10) {
+          headerEl.style.width = 'auto';
+        }
       });
       
       tempContainer.appendChild(tableClone);
-      
-      // Data para o nome do arquivo
+        // Data para o nome do arquivo
       const date = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+        // Adicionamos a tabela ao container
+      tempContainer.appendChild(tableClone);
+      
+      // Anexamos temporariamente para medir e ajustar
+      document.body.appendChild(tempContainer);
+        // Para tabelas com muitas colunas, forçamos modo paisagem
+      const forceWide = isWideTable;
+      
+      if (forceWide) {
+        tempContainer.style.width = '800px';  // Largura ideal para paisagem
+      } else {
+        tempContainer.style.width = '600px';  // Largura para retrato
+      }
+      
+      // Removemos para reapender depois com os ajustes
+      document.body.removeChild(tempContainer);
       
       // Anexamos temporariamente ao documento para capturar o HTML
       document.body.appendChild(tempContainer);
-      
-      // Capturamos o container como imagem
+        // Capturamos o container como imagem com alta qualidade
       const canvas = await html2canvas(tempContainer, {
-        scale: 2, // Melhor qualidade
-        backgroundColor: null,
-        logging: false
+        scale: 3, // Qualidade ainda maior
+        backgroundColor: 'white',
+        logging: false,
+        allowTaint: true,
+        useCORS: true
       });
       
       // Removemos o container temporário
-      document.body.removeChild(tempContainer);
+      document.body.removeChild(tempContainer);      // Determinar a orientação da página baseada na proporção da tabela e no número de colunas
+      let isLandscape = canvas.width > canvas.height;
       
-      // Calculamos as dimensões
-      const imgWidth = 210; // A4 width in mm
+      // Forçar modo paisagem para tabelas com muitas colunas
+      if (isWideTable) {
+        isLandscape = true;
+      }
+      
+      // Criamos o PDF com orientação apropriada
+      const pdf = new jsPDF(isLandscape ? 'l' : 'p', 'mm', 'a4');
+      
+      // Dimensões da página PDF
+      const pdfWidth = isLandscape ? 297 : 210; // A4 width in mm (landscape: 297, portrait: 210)
+      const pdfHeight = isLandscape ? 210 : 297; // A4 height in mm (landscape: 210, portrait: 297)
+      
+      // Calculamos as dimensões mantendo uma margem
+      const margin = 10; // 10mm de margem
+      const imgWidth = pdfWidth - (margin * 2);
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      // Criamos o PDF (formato A4)
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      // Adicionamos a imagem capturada ao PDF
-      pdf.addImage(
-        canvas.toDataURL('image/png'), 
-        'PNG', 
-        0, 0, 
-        imgWidth, imgHeight
+      // Verificar se a altura cabe na página, caso contrário, redimensionar
+      if (imgHeight > (pdfHeight - (margin * 2))) {
+        const ratio = (pdfHeight - (margin * 2)) / imgHeight;
+        const newWidth = imgWidth * ratio;
+        
+        // Adicionamos a imagem capturada ao PDF centralizada
+        pdf.addImage(
+          canvas.toDataURL('image/png'), 
+          'PNG', 
+          (pdfWidth - newWidth) / 2, margin, 
+          newWidth, (pdfHeight - (margin * 2))
+        );
+      } else {
+        // Adicionamos a imagem capturada ao PDF centralizada
+        pdf.addImage(
+          canvas.toDataURL('image/png'), 
+          'PNG', 
+          margin, margin + ((pdfHeight - (margin * 2) - imgHeight) / 2), 
+          imgWidth, imgHeight
+        );
+      }
+        // Adicionar informações de rodapé
+      pdf.setFontSize(8);
+      pdf.setTextColor(150);
+      pdf.text(
+        `Planilha de Treino - Gerado em ${date}`, 
+        pdfWidth / 2, 
+        pdfHeight - 5, 
+        { align: 'center' }
       );
       
       // Salvamos o arquivo
@@ -370,7 +438,7 @@ const Chat = () => {  const [input, setInput] = useState("");
       
       toast({
         title: "PDF gerado com sucesso!",
-        description: "Sua planilha foi exportada como PDF."
+        description: `Sua planilha foi exportada como PDF em formato ${isLandscape ? "paisagem" : "retrato"}.`
       });
       
     } catch (err) {
@@ -467,10 +535,10 @@ const Chat = () => {  const [input, setInput] = useState("");
                     }
                   }}
                   disabled={isLoading || shouldBlur}
-                  className="p-1 h-8 w-8 mr-1 hover:bg-gray-200 focus:opacity-100"
+                  className="p-1 h-8 w-8 mr-1 hover:bg-blue-100 focus:opacity-100"
                   title="Exportar planilha como PDF"
                 >
-                  <FileDown className="h-4 w-4" />
+                  <FileDown className="h-4 w-4 text-blue-600" />
                 </Button>
               )}
               
