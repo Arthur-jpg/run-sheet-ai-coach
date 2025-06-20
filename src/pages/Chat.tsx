@@ -12,7 +12,7 @@ import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-const FREE_PLAN_LIMIT = 100; // 3 mensagens gratuitas por chat
+const FREE_PLAN_LIMIT = 4; // 3 mensagens gratuitas por chat
 
 // Acessa as variáveis de ambiente usando import.meta.env (Vite)
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || ""; 
@@ -457,7 +457,7 @@ const Chat = () => {  const [input, setInput] = useState("");
     
     // Verifica se é uma planilha e se o usuário não é premium
     // mudar isso se precissar mexer sem limite
-    const shouldBlur = isPremium && message.containsSheet;
+    const shouldBlur = !isPremium && message.containsSheet;
     
     return (      <div        key={index} 
         className={`mb-4 flex ${isUser ? 'justify-end' : 'justify-start'} group`}      ><div 
