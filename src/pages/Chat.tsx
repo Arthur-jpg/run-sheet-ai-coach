@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CreditCard } from "lucide-react";
+import { Loader2, Send, CreditCard, Copy, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -71,11 +71,11 @@ interface ChatMessage {
   containsSheet?: boolean;
 }
 
-const Chat = () => {
-  const [input, setInput] = useState("");
+const Chat = () => {  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [webhookStatus, setWebhookStatus] = useState<"checking" | "available" | "unavailable">("available");
+  const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
   
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -233,20 +233,47 @@ const Chat = () => {
       setIsLoading(false);
     }
   };
+  // Função para copiar o texto da resposta para a área de transferência
+  const handleCopyText = (text: string, index: number) => {
+    // Remove formatações markdown antes de copiar (opcional, depende da sua preferência)
+    // Mantemos o texto original para preservar formatação, mas podemos melhorar isso no futuro
+    
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setCopiedMessageId(index);
+        toast({ 
+          title: "Texto copiado!", 
+          description: "O texto foi copiado para a área de transferência."
+        });
+        
+        // Resetar o ícone para o estado inicial após 2 segundos
+        setTimeout(() => {
+          setCopiedMessageId(null);
+        }, 2000);
+      })
+      .catch(err => {
+        console.error("Erro ao copiar texto:", err);
+        toast({ 
+          title: "Erro ao copiar", 
+          description: "Não foi possível copiar o texto.",
+          variant: "destructive" 
+        });
+      });
+  };
+
   // Renderiza uma mensagem individual
   const renderMessage = (message: ChatMessage, index: number) => {
     const isUser = message.from === "user";
     
     // Verifica se é uma planilha e se o usuário não é premium
-    const shouldBlur = !isPremium && message.containsSheet;
+    // mudar isso se precissar mexer sem limite
+    const shouldBlur = isPremium && message.containsSheet;
     
-    return (
-      <div 
+    return (      <div 
         key={index} 
-        className={`mb-4 flex ${isUser ? 'justify-end' : 'justify-start'}`}
-      >
-        <div 
-          className={`max-w-3/4 rounded-lg p-4 ${
+        className={`mb-4 flex ${isUser ? 'justify-end' : 'justify-start'} group`}
+      ><div 
+          className={`max-w-3/4 rounded-lg p-4 relative ${
             isUser 
               ? 'bg-blue-500 text-white' 
               : 'bg-gray-100 text-gray-800'
@@ -298,6 +325,17 @@ const Chat = () => {
             <div className="mt-2 py-2 px-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs">
               <strong>💡 Conteúdo limitado:</strong> Faça upgrade para visualizar planilhas completas.
             </div>
+          )}          {/* Ícone de cópia - posicionado no canto superior direito */}
+          {!isUser && (            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleCopyText(message.text, index)}
+              disabled={isLoading}
+              className="absolute top-1 right-1 p-1 h-8 w-8 opacity-0 group-hover:opacity-100 hover:bg-gray-200 focus:opacity-100 transition-opacity"
+              title="Copiar mensagem"
+            >
+              {copiedMessageId === index ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
           )}
         </div>
       </div>
