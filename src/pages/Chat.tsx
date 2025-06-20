@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CreditCard, Copy, Check, FileDown, Printer } from "lucide-react";
+import { Loader2, Send, CreditCard, Copy, Check, FileDown, Printer, Home } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -598,7 +598,21 @@ const Chat = () => {  const [input, setInput] = useState("");
     }
   `;return (
     <main className="max-w-4xl mx-auto py-6 flex flex-col h-screen overflow-hidden">
-      <style>{markdownStyles}</style>      <div className="min-h-[80px]">
+      <style>{markdownStyles}</style>      <div className="min-h-[80px] relative">
+        {!isPremium && (
+          <div className="absolute left-0 top-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="text-gray-500 hover:text-gray-800"
+              title="Voltar para a página inicial"
+            >
+              <Home className="h-4 w-4 mr-2" /> Início
+            </Button>
+          </div>
+        )}
+
         <h1 className="text-2xl font-bold text-center mb-2">
           Assistente de Planilhas de Treino
         </h1>
@@ -652,7 +666,14 @@ const Chat = () => {  const [input, setInput] = useState("");
         </Button>
       </div>      {/* Botão de upgrade para usuários que atingiram o limite */}
       {availableMessages <= 0 && !isPremium && (
-        <div className="mt-2 text-center min-h-[50px]">
+        <div className="mt-2 text-center min-h-[50px] flex justify-center gap-4">
+          <Button 
+            onClick={() => navigate("/")}
+            variant="outline" 
+            className="px-4"
+          >
+            <Home className="h-4 w-4 mr-2" /> Voltar para Página Inicial
+          </Button>
           <Button 
             onClick={() => navigate("/dashboard")}
             variant="default" 

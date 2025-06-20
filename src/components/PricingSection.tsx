@@ -4,7 +4,7 @@ const PricingSection = () => (
   <section className="max-w-xl mx-auto py-16 text-center">
     <h2 className="text-2xl md:text-3xl font-bold mb-3">Assinatura</h2>
     <p className="text-lg text-gray-700 mb-10">
-      Acesso total à RunSheet por apenas <span className="font-bold text-primary">R$ 19,90/mês</span>.
+      Acesso total à RunSheet por apenas <span className="font-bold text-primary">R$ 59,90/mês</span>.
     </p>
     <div className="bg-white rounded-xl shadow-xl py-8 px-6 mx-auto flex flex-col items-center gap-4 max-w-md">
       <ul className="mb-6 text-left">
