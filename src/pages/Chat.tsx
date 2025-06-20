@@ -271,9 +271,8 @@ const Chat = () => {  const [input, setInput] = useState("");
     
     return (      <div 
         key={index} 
-        className={`mb-4 flex ${isUser ? 'justify-end' : 'justify-start'} group`}
-      ><div 
-          className={`max-w-3/4 rounded-lg p-4 relative ${
+        className={`mb-4 flex ${isUser ? 'justify-end' : 'justify-start'} group`}      ><div 
+          className={`${isUser ? 'max-w-3/4' : 'max-w-[85%]'} rounded-lg p-4 relative ${
             isUser 
               ? 'bg-blue-500 text-white' 
               : 'bg-gray-100 text-gray-800'
@@ -306,10 +305,10 @@ const Chat = () => {  const [input, setInput] = useState("");
                       </code>
                     );
                   },                  table({node, ...props}: any) {
-                    return <table className="border-collapse border border-gray-300 my-4" {...props} />;
+                    return <div className="overflow-x-auto"><table className="border-collapse border border-gray-300 my-4 min-w-full" {...props} /></div>;
                   },
                   th({node, ...props}: any) {
-                    return <th className="border border-gray-300 px-4 py-2 bg-gray-100" {...props} />;
+                    return <th className="border border-gray-300 px-4 py-2 bg-gray-100 whitespace-nowrap" {...props} />;
                   },
                   td({node, ...props}: any) {
                     return <td className="border border-gray-300 px-4 py-2" {...props} />;
@@ -356,33 +355,29 @@ const Chat = () => {  const [input, setInput] = useState("");
     .markdown-body li { margin-top: 0.25em; margin-bottom: 0.25em; }
     .markdown-body pre { margin: 0.5em 0; }
     .markdown-body blockquote { border-left: 0.25em solid #ccc; padding-left: 1em; color: #555; margin: 0.5em 0; }
-    .markdown-body a { color: #0366d6; text-decoration: none; }
-    .markdown-body a:hover { text-decoration: underline; }
-    .markdown-body table { width: 100%; }
+    .markdown-body a { color: #0366d6; text-decoration: none; }    .markdown-body a:hover { text-decoration: underline; }
+    .markdown-body table { width: 100%; overflow-x: auto; display: block; }
+    .markdown-body table th, .markdown-body table td { min-width: 80px; }
     .markdown-body img { max-width: 100%; }
     .bg-blue-500 .markdown-body { color: white; }
     .bg-blue-500 .markdown-body a { color: #cce4ff; }
     .bg-blue-500 .markdown-body blockquote { border-left-color: #ffffff80; color: #ffffffcc; }
-  `;
+  `;  return (
+    <main className="max-w-4xl mx-auto py-6 flex flex-col h-screen overflow-hidden">
+      <style>{markdownStyles}</style>      <div className="min-h-[80px]">
+        <h1 className="text-2xl font-bold text-center mb-2">
+          Assistente de Planilhas de Treino
+        </h1>
 
-  return (
-    <main className="max-w-3xl mx-auto py-6 flex flex-col h-[calc(100vh-60px)]">
-      <style>{markdownStyles}</style>
-
-      <h1 className="text-2xl font-bold text-center mb-2">
-        Assistente de Planilhas de Treino
-      </h1>
-
-      <p className="text-center text-muted-foreground mb-4">
-        {isPremium
-          ? "Assinante: conversas ilimitadas."
-          : availableMessages > 0
-          ? `Você possui ${availableMessages} ${availableMessages === 1 ? 'mensagem gratuita' : 'mensagens gratuitas'} restante${availableMessages === 1 ? '' : 's'}.`
-          : "Você atingiu o limite gratuito. Assine para continuar!"}
-      </p>
-
-      {/* Área de mensagens */}
-      <div className="flex-grow bg-white rounded-lg shadow overflow-y-auto p-4 mb-4">
+        <p className="text-center text-muted-foreground mb-4">
+          {isPremium
+            ? "Assinante: conversas ilimitadas."
+            : availableMessages > 0
+            ? `Você possui ${availableMessages} ${availableMessages === 1 ? 'mensagem gratuita' : 'mensagens gratuitas'} restante${availableMessages === 1 ? '' : 's'}.`
+            : "Você atingiu o limite gratuito. Assine para continuar!"}
+        </p>
+      </div>{/* Área de mensagens - com altura fixa e scroll somente nesta área */}
+      <div className="h-[calc(100vh-230px)] bg-white rounded-lg shadow overflow-y-auto p-4 mb-4">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400">
             <p>Nenhuma mensagem ainda.</p>
@@ -396,10 +391,8 @@ const Chat = () => {  const [input, setInput] = useState("");
             <div ref={messagesEndRef} />
           </div>
         )}
-      </div>
-
-      {/* Área de entrada */}
-      <div className="flex gap-2 items-end">
+      </div>      {/* Área de entrada - mantida na parte inferior */}
+      <div className="flex gap-2 items-end min-h-[90px]">
         <Textarea
           className="flex-grow resize-none"
           rows={2}
@@ -423,11 +416,9 @@ const Chat = () => {  const [input, setInput] = useState("");
         >
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
-      </div>
-
-      {/* Botão de upgrade para usuários que atingiram o limite */}
+      </div>      {/* Botão de upgrade para usuários que atingiram o limite */}
       {availableMessages <= 0 && !isPremium && (
-        <div className="mt-4 text-center">
+        <div className="mt-2 text-center min-h-[50px]">
           <Button 
             onClick={() => navigate("/dashboard")}
             variant="default" 
