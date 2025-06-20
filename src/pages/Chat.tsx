@@ -5,8 +5,12 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, CreditCard } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-const FREE_PLAN_LIMIT = 3; // 3 mensagens gratuitas por chat
+const FREE_PLAN_LIMIT = 100; // 3 mensagens gratuitas por chat
 
 // Acessa as variáveis de ambiente usando import.meta.env (Vite)
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || ""; 
@@ -50,8 +54,12 @@ const containsSheet = (text: string): boolean => {
   return (
     text.includes("```excel") ||
     text.includes("```csv") ||
+    text.includes("```sheet") ||
     text.includes("| ---") ||
-    text.includes("<table")
+    text.includes("| ----") ||
+    text.includes("| ===") ||
+    text.includes("<table") ||
+    (text.includes("|") && text.includes("\n|")) // Possível tabela markdown
   );
 };
 
@@ -225,7 +233,6 @@ const Chat = () => {
       setIsLoading(false);
     }
   };
-
   // Renderiza uma mensagem individual
   const renderMessage = (message: ChatMessage, index: number) => {
     const isUser = message.from === "user";
@@ -245,12 +252,47 @@ const Chat = () => {
               : 'bg-gray-100 text-gray-800'
           }`}
         >
-          <pre 
-            className={`whitespace-pre-wrap ${shouldBlur ? 'blur-sm select-none' : ''}`}
-            style={{ fontFamily: 'inherit' }}
-          >
-            {message.text}
-          </pre>
+          <div className={`markdown-body ${shouldBlur ? 'blur-sm select-none' : ''}`}>
+            {isUser ? (
+              // Para mensagens do usuário, usamos texto simples
+              <p className="whitespace-pre-wrap" style={{ margin: 0 }}>
+                {message.text}
+              </p>
+            ) : (
+              // Para mensagens do assistente, renderizamos como Markdown
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}                components={{
+                  code({node, inline, className, children, ...props}: any) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    return !inline && match ? (
+                      <SyntaxHighlighter
+                        style={atomDark}
+                        language={match[1]}
+                        PreTag="div"
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, '')}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },                  table({node, ...props}: any) {
+                    return <table className="border-collapse border border-gray-300 my-4" {...props} />;
+                  },
+                  th({node, ...props}: any) {
+                    return <th className="border border-gray-300 px-4 py-2 bg-gray-100" {...props} />;
+                  },
+                  td({node, ...props}: any) {
+                    return <td className="border border-gray-300 px-4 py-2" {...props} />;
+                  }
+                }}
+              >
+                {message.text}
+              </ReactMarkdown>
+            )}
+          </div>
           
           {shouldBlur && (
             <div className="mt-2 py-2 px-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-xs">
@@ -262,8 +304,33 @@ const Chat = () => {
     );
   };
 
+  // Estilos para o Markdown
+  const markdownStyles = `
+    .markdown-body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+    }
+    .markdown-body h1 { font-size: 1.5em; margin-top: 1em; margin-bottom: 0.5em; font-weight: 600; }
+    .markdown-body h2 { font-size: 1.25em; margin-top: 1em; margin-bottom: 0.5em; font-weight: 600; }
+    .markdown-body h3 { font-size: 1.1em; margin-top: 0.8em; margin-bottom: 0.4em; font-weight: 600; }
+    .markdown-body p { margin-top: 0.5em; margin-bottom: 0.5em; }
+    .markdown-body ul, .markdown-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+    .markdown-body li { margin-top: 0.25em; margin-bottom: 0.25em; }
+    .markdown-body pre { margin: 0.5em 0; }
+    .markdown-body blockquote { border-left: 0.25em solid #ccc; padding-left: 1em; color: #555; margin: 0.5em 0; }
+    .markdown-body a { color: #0366d6; text-decoration: none; }
+    .markdown-body a:hover { text-decoration: underline; }
+    .markdown-body table { width: 100%; }
+    .markdown-body img { max-width: 100%; }
+    .bg-blue-500 .markdown-body { color: white; }
+    .bg-blue-500 .markdown-body a { color: #cce4ff; }
+    .bg-blue-500 .markdown-body blockquote { border-left-color: #ffffff80; color: #ffffffcc; }
+  `;
+
   return (
     <main className="max-w-3xl mx-auto py-6 flex flex-col h-[calc(100vh-60px)]">
+      <style>{markdownStyles}</style>
+
       <h1 className="text-2xl font-bold text-center mb-2">
         Assistente de Planilhas de Treino
       </h1>
