@@ -9,6 +9,8 @@ import Chat from "./pages/Chat";
 import Dashboard from "./pages/Dashboard";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCanceled from "./pages/PaymentCanceled";
+import ClientManager from "./pages/ClientManager";
+import NewChat from "./pages/NewChat";
 
 const queryClient = new QueryClient();
 
@@ -18,10 +20,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
+        <Routes>          <Route path="/" element={<Index />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/new-chat" element={<NewChat />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/client/:clientId" element={<ClientManager />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/payment-canceled" element={<PaymentCanceled />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -1,0 +1,3 @@
+@echo off
+echo Iniciando servidor RunSheet para integracao com Stripe...
+node server.js

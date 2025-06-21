@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, CreditCard } from "lucide-react";
+import { Loader2, Send, CreditCard, ArrowLeft } from "lucide-react";
+import { clients, ClientData, runningPlans } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 
 const FREE_PLAN_LIMIT = 3; // 3 mensagens gratuitas por chat
 
@@ -64,6 +66,11 @@ interface ChatMessage {
 }
 
 const Chat = () => {
+  // Get client ID from URL query parameters
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const clientId = queryParams.get('clientId');
+  const [client, setClient] = useState<ClientData | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -75,12 +82,32 @@ const Chat = () => {
 
   // Premium status mock (localStorage). Troque/se integre após backend real.
   const isPremium = localStorage.getItem("userPremium") === "true";
-
   // Carrega as mensagens ao iniciar
   useEffect(() => {
     const history = getChatHistory(chatId.current);
     setMessages(history);
-  }, []);
+    
+    // If clientId is provided, fetch client details
+    if (clientId) {
+      const fetchClient = async () => {
+        try {
+          // In a real app, fetch from API
+          const clientsData = await clients.getClients("coach_123");
+          const foundClient = clientsData.find((c: ClientData) => c.id === clientId);
+          
+          if (foundClient) {
+            setClient(foundClient);
+            // Set initial prompt with client information
+            setInput(`Crie uma planilha de treino personalizada para ${foundClient.name}.`);
+          }
+        } catch (error) {
+          console.error("Error fetching client:", error);
+        }
+      };
+      
+      fetchClient();
+    }
+  }, [clientId]);
 
   // Rola para a última mensagem quando adicionada
   useEffect(() => {
@@ -190,8 +217,7 @@ const Chat = () => {
       
       const finalMessages = [...updatedMessages, assistantMessage];
       setMessages(finalMessages);
-      
-      // Salva no histórico local
+        // Salva no histórico local
       saveChatHistory(chatId.current, finalMessages);
       
       // Atualiza o chat na lista
@@ -200,6 +226,29 @@ const Chat = () => {
       if (chatIndex !== -1) {
         updatedChats[chatIndex].history = finalMessages;
         saveChats(updatedChats);
+      }
+      
+      // If this is a client-specific plan, save it to the client's plans
+      if (clientId && client && hasSheet) {
+        try {
+          // Save the running plan for this client
+          await runningPlans.createPlan(clientId, {
+            title: `Planilha para ${client.name} - ${new Date().toLocaleDateString()}`,
+            content: assistantResponse
+          });
+          
+          toast({
+            title: "Planilha Salva",
+            description: `A planilha foi salva para ${client.name}.`,
+          });
+        } catch (error) {
+          console.error("Error saving plan:", error);
+          toast({
+            title: "Erro ao Salvar Planilha",
+            description: "Não foi possível salvar a planilha para este cliente.",
+            variant: "destructive",
+          });
+        }
       }
 
     } catch (err) {
@@ -261,12 +310,28 @@ const Chat = () => {
       </div>
     );
   };
-
   return (
     <main className="max-w-3xl mx-auto py-6 flex flex-col h-[calc(100vh-60px)]">
-      <h1 className="text-2xl font-bold text-center mb-2">
-        Assistente de Planilhas de Treino
-      </h1>
+      <div className="flex items-center justify-between mb-2">
+        <Button variant="ghost" onClick={() => navigate(client ? "/dashboard" : "/")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          {client ? "Voltar ao Dashboard" : "Voltar ao Início"}
+        </Button>
+        
+        <h1 className="text-2xl font-bold text-center">
+          Assistente de Planilhas de Treino
+        </h1>
+        
+        <div className="w-[100px]"></div>
+      </div>
+      
+      {client && (
+        <div className="flex items-center justify-center mb-4">
+          <Badge variant="outline" className="px-3 py-1 text-sm">
+            Criando planilha para: <span className="font-semibold ml-1">{client.name}</span>
+          </Badge>
+        </div>
+      )}
 
       <p className="text-center text-muted-foreground mb-4">
         {isPremium
