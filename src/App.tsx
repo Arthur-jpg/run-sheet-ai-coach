@@ -11,6 +11,8 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCanceled from "./pages/PaymentCanceled";
 import ClientManager from "./pages/ClientManager";
 import NewChat from "./pages/NewChat";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import PremiumRoute from "@/components/PremiumRoute";
 
 const queryClient = new QueryClient();
 
@@ -20,14 +22,47 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>          <Route path="/" element={<Index />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/new-chat" element={<NewChat />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/client/:clientId" element={<ClientManager />} />
+        <Routes>
+          {/* Rotas públicas */}
+          <Route path="/" element={<Index />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/payment-canceled" element={<PaymentCanceled />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          
+          {/* Rotas autenticadas (requer login) */}
+          <Route path="/dashboard" element={
+            <SignedIn>
+              <Dashboard />
+            </SignedIn>
+          } />
+          
+          {/* Rotas que requerem autenticação */}
+          <Route path="/chat" element={
+            <SignedIn>
+              <Chat />
+            </SignedIn>
+          } />
+          
+          {/* Rotas premium (requer assinatura) */}
+          <Route path="/new-chat" element={
+            <SignedIn>
+              <PremiumRoute>
+                <NewChat />
+              </PremiumRoute>
+            </SignedIn>
+          } />
+          
+          <Route path="/client/:clientId" element={
+            <SignedIn>
+              <PremiumRoute>
+                <ClientManager />
+              </PremiumRoute>
+            </SignedIn>
+          } />
+          
+          {/* Redirecionar para login se não estiver autenticado */}
+          <Route path="/login/*" element={<RedirectToSignIn />} />
+          
+          {/* Rota de fallback */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

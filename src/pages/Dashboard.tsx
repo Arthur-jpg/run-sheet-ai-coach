@@ -17,49 +17,51 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState as useForm } from "react";
+import { useUser } from '@clerk/clerk-react';
+import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { FreePlanOnly, PremiumOnly } from '@/components/PremiumGuard';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user, isSignedIn, isLoaded } = useUser();
+  const { isPremium, subscription, isLoading: premiumLoading, refresh: refreshPremium } = usePremiumStatus();
+  
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState(null);
-  const [isSubscribed, setIsSubscribed] = useState(false);
   const [clientsList, setClientsList] = useState<ClientData[]>([]);
   const [plansList, setPlansList] = useState<RunningPlan[]>([]);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  
-  // Simulating a userId from auth - in a real app, get this from auth context
-  const userId = "user_123";
 
-  // Check subscription status on load
+  // Carregar clientes e planos quando o usuário estiver carregado e após verificar o status premium
   useEffect(() => {
-    const checkSubscription = async () => {
+    const loadData = async () => {
+      if (!isLoaded || !isSignedIn || premiumLoading) {
+        return;
+      }
+      
+      setLoading(true);
       try {
-        const status = await stripe.getSubscriptionStatus(userId);
-        setIsSubscribed(status.active);
-        setSubscription(status.subscription);
-        
-        // If subscribed, fetch clients and plans
-        if (status.active) {
+        // Obter a lista de clientes
+        const userId = user?.id;
+        if (!userId) return;
           const clientsData = await clients.getClients(userId);
-          setClientsList(clientsData);
-          
-          const plansData = await runningPlans.getCoachPlans(userId);
-          setPlansList(plansData);
-        }
+        setClientsList(clientsData);
         
-        setLoading(false);
+        const plansData = await runningPlans.getCoachPlans(userId);
+        setPlansList(plansData);
       } catch (error) {
-        console.error("Error checking subscription:", error);
+        console.error("Error loading data:", error);
+      } finally {
         setLoading(false);
       }
     };
     
-    checkSubscription();
-  }, [userId]);  // Handle subscription
-  const handleSubscribe = async () => {
+    if (isLoaded && isSignedIn) {
+      loadData();
+    }
+  }, [isLoaded, isSignedIn, user?.id, premiumLoading]);  const handleSubscribe = async () => {
     try {
       // Use the price ID from environment variables
       const priceId = import.meta.env.VITE_STRIPE_PRICE_ID;
@@ -74,8 +76,12 @@ const Dashboard = () => {
         console.warn("AVISO: O ID não parece ser um price_id válido:", priceId);
       }
       
-      // Não enviamos o userId para testes iniciais
-      await stripe.createCheckoutSession(priceId);
+      // Agora enviamos o ID do usuário Clerk para o checkout
+      if (user?.id) {
+        await stripe.createCheckoutSession(priceId, user.id);
+      } else {
+        throw new Error("Usuário não está autenticado");
+      }
     } catch (error) {
       console.error("Error creating checkout session:", error);
       alert(`Erro ao criar sessão de checkout: ${error.message}. Verifique o console para mais detalhes.`);
@@ -130,13 +136,24 @@ const Dashboard = () => {
             <strong>Status:</strong>{" "}
             <span
               className={
-                isSubscribed
+                isPremium
                   ? "text-green-700 font-semibold"
                   : "text-destructive font-semibold"
               }
             >
-              {loading ? "Verificando..." : isSubscribed ? "Assinante Ativo" : "Grátis (limitado)"}
-            </span>
+              {loading || premiumLoading ? "Verificando..." : isPremium ? "Assinante Ativo" : "Grátis (limitado)"}            </span>
+            {(loading || premiumLoading) && (
+              <span className="ml-2 inline-block animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></span>
+            )}
+            <Button 
+              variant="link" 
+              size="sm" 
+              className="ml-2 text-xs text-muted-foreground" 
+              onClick={refreshPremium}
+              disabled={loading || premiumLoading}
+            >
+              Atualizar Status
+            </Button>
           </div>
           {subscription && (
             <div>
@@ -144,13 +161,16 @@ const Dashboard = () => {
                 Assinatura ativa desde: {new Date(subscription.created * 1000).toLocaleDateString()}
               </p>
               <p className="text-sm text-muted-foreground">
-                Próxima cobrança: {new Date(subscription.current_period_end * 1000).toLocaleDateString()}
+                Próxima cobrança: {subscription?.current_period_end ? 
+                  new Date(subscription.current_period_end * 1000).toLocaleDateString() : 
+                  'Informação não disponível'
+                }
               </p>
-            </div>
-          )}
-        </CardContent>        <CardFooter className="flex gap-4 justify-center">
-          {!isSubscribed ? (
-            <>
+            </div>          )}
+        </CardContent>
+        <CardFooter className="flex gap-4 justify-center">
+          <FreePlanOnly>
+            <div className="flex gap-4">
               <Button
                 className="max-w-xs"
                 onClick={handleSubscribe}
@@ -166,8 +186,10 @@ const Dashboard = () => {
               >
                 Testar Checkout
               </Button>
-            </>
-          ) : (
+            </div>
+          </FreePlanOnly>
+          
+          <PremiumOnly>
             <Button
               variant="outline"
               className="w-full max-w-xs"
@@ -179,12 +201,12 @@ const Dashboard = () => {
             >
               Cancelar Assinatura
             </Button>
-          )}
+          </PremiumOnly>
         </CardFooter>
       </Card>
       
       {/* Premium Features */}
-      {isSubscribed && (
+      <PremiumOnly>
         <>
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-semibold">Área Premium</h2>
@@ -358,9 +380,8 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
-        </>
-      )}
+          </Tabs>        </>
+      </PremiumOnly>
       
       <Button variant="secondary" onClick={() => navigate("/")}>
         Voltar para o Início

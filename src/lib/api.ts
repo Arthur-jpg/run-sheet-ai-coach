@@ -18,8 +18,9 @@ export interface RunningPlan {
   createdAt: string;
 }
 
-export const stripe = {  // Create a checkout session for subscription
-  createCheckoutSession: async (priceId: string, customerId?: string) => {
+export const stripe = {
+  // Create a checkout session for subscription
+  createCheckoutSession: async (priceId: string, clerkUserId?: string) => {
     try {
       const response = await fetch(`${API_URL}/create-checkout-session`, {
         method: 'POST',
@@ -28,7 +29,7 @@ export const stripe = {  // Create a checkout session for subscription
         },
         body: JSON.stringify({ 
           priceId,
-          customerId,
+          clerkUserId, // Agora enviamos o ID do Clerk em vez do customerId
           successUrl: `${window.location.origin}/payment-success`,
           cancelUrl: `${window.location.origin}/payment-canceled`,
         }),
@@ -62,14 +63,47 @@ export const stripe = {  // Create a checkout session for subscription
     }
   },
 
-  // Get subscription status
-  getSubscriptionStatus: async (userId: string) => {
+  // Criar ou recuperar um cliente Stripe para um usuário Clerk
+  createStripeCustomer: async (clerkUserId: string) => {
     try {
-      const response = await fetch(`${API_URL}/subscription-status/${userId}`);
+      const response = await fetch(`${API_URL}/api/create-stripe-customer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: clerkUserId }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao criar/recuperar cliente Stripe');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao criar/recuperar cliente Stripe:', error);
+      throw error;
+    }
+  },
+
+  // Get subscription status for a Clerk user
+  getSubscriptionStatus: async (clerkUserId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/subscription-status/${clerkUserId}`);
       return await response.json();
     } catch (error) {
       console.error('Error checking subscription status:', error);
       return { active: false };
+    }
+  },
+  
+  // Verificar rapidamente se um usuário é premium (usando metadados do Clerk)
+  checkPremiumStatus: async (clerkUserId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/user-premium-status/${clerkUserId}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking premium status:', error);
+      return { isPremium: false };
     }
   },
 
